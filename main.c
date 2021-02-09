@@ -2,8 +2,10 @@
 #include <avr/io.h>
 #include <util/delay.h>
 
-// Set up motor on PA1 (WO1)
+// Set up left motor on PA1 (WO1)
 #define PIN_MOTOR_L 1
+// Set up right motor on PA2 (WO2)
+#define PIN_MOTOR_R 2
 
 #define LEN_SIN 32
 const uint8_t SIN[LEN_SIN] = {127, 152, 176, 198, 217, 233, 244, 252, 254, 252, 244, 233, 217, 198, 176, 152, 127, 102, 78, 56, 37, 21, 10, 2, 0, 2, 10, 21, 37, 56, 78, 102};
@@ -25,34 +27,33 @@ void main() {
 	
 	// Set up PWM output
 	TCA0_SPLIT_CTRLB |= (
-		// Override output for PWM
-		TCA_SPLIT_LCMP1EN_bm
+		// Override outputs for PWM
+		TCA_SPLIT_LCMP1EN_bm |
+		TCA_SPLIT_LCMP2EN_bm
 	);
-	/*TCA0_SINGLE_EVCTRL &= ~(
-		// Count in clock ticks
-		TCA_SINGLE_CNTEI_bm
-	);
-	TCA0_SPLIT_CTRLB |= (
-		// Set waveform generation mode to single-slope PWM
-		TCA_SINGLE_WGMODE_SINGLESLOPE_gc
-	);*/
-	// Enable left motor pin for output
-	PORTA_DIR |= (1 << PIN_MOTOR_L);
 	
-	uint8_t i = 0;
+	// Enable left motor pin for output
+	PORTA_DIR |= (1 << PIN_MOTOR_L) | (1 << PIN_MOTOR_R);
+	
+	uint8_t iLeft = 0;
+	uint8_t iRight = LEN_SIN / 4;
 
 	while (1) {
-		// Update PWM duty cycle
-		TCA0_SPLIT_LCMP1 = SIN[i];
+		// Update PWM duty cycles
+		TCA0_SPLIT_LCMP1 = SIN[iLeft];
+		TCA0_SPLIT_LCMP2 = SIN[iRight];
 		
-		// Increment PWM duty cycle
-		i++;
-		if (i == LEN_SIN) {
-			i = 0;
+		// Increment PWM duty cycles
+		iLeft++;
+		if (iLeft == LEN_SIN) {
+			iLeft = 0;
+		}
+		iRight++;
+		if (iRight == LEN_SIN) {
+			iRight = 0;
 		}
 		
 		// Wait a bit
-		// for (uint16_t i = 0; i < 10000; ++i);
 		_delay_ms(10);
 	}
 }
