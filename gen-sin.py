@@ -4,7 +4,7 @@ from math import sin, pi
 LEN_TAB = 32
 
 if len(argv) > 1:
-    LEN_TAB = argv[1]
+    LEN_TAB = int(argv[1])
 
 print("\n{", end="")
 
