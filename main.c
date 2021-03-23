@@ -3,38 +3,64 @@
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 
-// Set up left motor on PA1 (WO1)
-#define PIN_MOTOR_L 1
-// Set up right motor on PA2 (WO2)
-#define PIN_MOTOR_R 2
+// Set up red channel on PA3 (TCA WO0)
+#define PIN_RED 3
+// Set up green channel on PA1 (TCA WO1)
+#define PIN_GREEN 1
+// Set up blue channel on PA6 (TCB WO)
+#define PIN_BLUE 6
 
-#define HI_RES_SIN
-#ifdef HI_RES_SIN
-	#define LEN_SIN 64
-	const uint8_t SIN[LEN_SIN] = {127, 139, 152, 164, 176, 187, 198, 208, 217, 225, 233, 239, 244, 249, 252, 253, 254, 253, 252, 249, 244, 239, 233, 225, 217, 208, 198, 187, 176, 164, 152, 139, 127, 115, 102, 90, 78, 67, 56, 46, 37, 29, 21, 15, 10, 5, 2, 1, 0, 1, 2, 5, 10, 15, 21, 29, 37, 46, 56, 67, 78, 90, 102, 115};
-#else
-	#define LEN_SIN 32
-	const uint8_t SIN[LEN_SIN] = {127, 152, 176, 198, 217, 233, 244, 252, 254, 252, 244, 233, 217, 198, 176, 152, 127, 102, 78, 56, 37, 21, 10, 2, 0, 2, 10, 21, 37, 56, 78, 102};
-#endif
+typedef struct _Color {
+	uint8_t red;
+	uint8_t green;
+	uint8_t blue;
+} Color;
 
-volatile uint8_t iLeft = 0;
-volatile uint8_t iRight = LEN_SIN / 4;
+static const Color TEAL = {0, 200, 164};
+static const Color PINK = {255, 0, 164};
+static const Color WHITE = {255, 200, 164};
+static const Color BLACK = {0, 0, 0};
+
+#define ON_RATIO 4
+uint8_t i = 0;
+#define LEN_SEQ 4
+static const Color *SEQUENCE[LEN_SEQ] = {&TEAL, &PINK, &WHITE, &PINK};
+
+void showColor(const Color *color);
 
 void main() {
+	// Set up main clock
+	// Write to protected register
+	CPU_CCP = CCP_IOREG_gc;
+	CLKCTRL_MCLKCTRLB = (
+		// Set main clock prescaler to 64
+		CLKCTRL_PDIV_64X_gc
+		// Enable main clock prescaler
+		| CLKCTRL_PEN_bm
+	);
+	// Write to protected register
+	CPU_CCP = CCP_IOREG_gc;
+	// Use 32kHz low-power oscillator as main clock
+	CLKCTRL_MCLKCTRLA = CLKCTRL_CLKSEL_OSCULP32K_gc;
+	// Wait for changes to be applied
+	while (CLKCTRL_MCLKSTATUS & CLKCTRL_SOSC_bm);
+	
 	// Wait for RTC to be ready
 	while (RTC_STATUS);
 
 	// Set up RTC timer for fade effect
-	// Set clock source to 1.024kHz from LFO
+	// Set clock source to 1kHz from LFO
 	RTC_CLKSEL = RTC_CLKSEL_INT1K_gc;
 	// Wait for changes to be applied
 	while (RTC_STATUS);
 	RTC_CTRLA = (
 		// Set RTC prescaler to 1 (technically not necessary)
 		RTC_PRESCALER_DIV1_gc
+		// Allow RTC to run in standby mode
+		| RTC_RUNSTDBY_bm
 	);
 	// Set RTC period
-	RTC_PER = 50;
+	RTC_PER = 512;
 	RTC_INTCTRL |= (
 		// Enable interrupt on overflow
 		RTC_OVF_bm
@@ -45,7 +71,7 @@ void main() {
 		// Enable RTC
 		RTC_RTCEN_bm
 	);
-	
+
 	// Set up PWM timer
 	TCA0_SPLIT_CTRLD |= (
 		// Enable split mode
@@ -63,12 +89,24 @@ void main() {
 	// Set up PWM output
 	TCA0_SPLIT_CTRLB |= (
 		// Override outputs for PWM
-		TCA_SPLIT_LCMP1EN_bm |
-		TCA_SPLIT_LCMP2EN_bm
+		TCA_SPLIT_LCMP0EN_bm |
+		TCA_SPLIT_LCMP1EN_bm
 	);
-	
-	// Enable left motor pin for output
-	PORTA_DIR |= (1 << PIN_MOTOR_L) | (1 << PIN_MOTOR_R);
+
+	// Set up Timer B for PWM
+	TCB0_CTRLA |= TCB_RUNSTDBY_bm;
+	TCB0_CCMPL = 0xFF;
+	TCB0_CTRLB |= (
+		// Set mode to 8-bit PWM
+		TCB_CNTMODE_PWM8_gc
+		// Enable output
+		| TCB_CCMPEN_bm
+	);
+	// Enable timer
+	TCB0_CTRLA |= TCB_ENABLE_bm;
+
+	// Enable LED pins for output
+	PORTA_DIR |= (1 << PIN_RED) | (1 << PIN_GREEN) | (1 << PIN_BLUE);
 	
 	// Enable global interrupts
 	sei();
@@ -83,20 +121,25 @@ void main() {
 
 
 ISR(RTC_CNT_vect) {
-	// Update PWM duty cycles
-	TCA0_SPLIT_LCMP1 = SIN[iLeft];
-	TCA0_SPLIT_LCMP2 = SIN[iRight];
-	
-	// Increment PWM duty cycles
-	iLeft++;
-	iRight++;
-	if (iLeft == LEN_SIN) {
-		iLeft = 0;
+	if (i % ON_RATIO == 0) {
+		showColor(SEQUENCE[i / ON_RATIO]);
+TCB0_CCMPH = 127;
+	} else if (i % ON_RATIO == ON_RATIO - 1) {
+		showColor(&BLACK);
 	}
-	if (iRight == LEN_SIN) {
-		iRight = 0;
+
+	// Increment sequence index
+	i++;
+	if (i == LEN_SEQ * ON_RATIO) {
+		i = 0;
 	}
-	
+
 	// Clear interrupt flag
 	RTC_INTFLAGS = RTC_OVF_bm;
+}
+
+void showColor(const Color *color) {
+	TCA0_SPLIT_LCMP0 = color->red;
+	TCA0_SPLIT_LCMP1 = color->green;
+	TCB0_CCMPH = color->blue;
 }
