@@ -11,7 +11,7 @@ main.o: main.c
 
 all: $(HEX)
 
-$(ELF): $(OBJS)
+$(ELF): $(OBJ)
 	$(CC) $(CFLAGS) $(SRC) -o $@
 
 $(HEX): $(ELF)

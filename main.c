@@ -16,9 +16,9 @@ typedef struct _Color {
 	uint8_t blue;
 } Color;
 
-static const Color TEAL = {0, 200, 164};
-static const Color PINK = {255, 0, 164};
-static const Color WHITE = {255, 200, 164};
+static const Color TEAL = {0, 255, 255};
+static const Color PINK = {255, 0, 255};
+static const Color WHITE = {255, 255, 255};
 static const Color BLACK = {0, 0, 0};
 
 #define ON_RATIO 4
