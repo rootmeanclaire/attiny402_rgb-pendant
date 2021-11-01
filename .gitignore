@@ -1,4 +1,6 @@
 *.o
 *.elf
 *.hex
-
+*-bak
+*-bak*
+*-cache*
