@@ -21,5 +21,4 @@ flash: $(HEX)
 	pyupdi -d tiny402 -c /dev/ttyUSB0 -f $(HEX)
 
 clean:
-	rm -f $(OBJS) $(ELF) $(HEX)
-
+	rm -f $(OBJ) $(ELF) $(HEX)
