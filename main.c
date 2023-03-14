@@ -4,11 +4,11 @@
 #include <avr/sleep.h>
 
 // Set up red channel on PA3 (TCA WO0)
-#define PIN_RED 3
+const uint8_t PIN_RED = 3;
 // Set up green channel on PA1 (TCA WO1)
-#define PIN_GREEN 1
+const uint8_t PIN_GREEN = 1;
 // Set up blue channel on PA6 (TCB WO)
-#define PIN_BLUE 6
+const uint8_t PIN_BLUE = 6;
 
 typedef struct _Color {
 	uint8_t red;
@@ -21,7 +21,7 @@ static const Color PINK = {255, 0, 255};
 static const Color WHITE = {255, 255, 255};
 static const Color BLACK = {0, 0, 0};
 
-#define ON_RATIO 4
+const uint8_t ON_RATIO = 4;
 uint8_t i = 0;
 #define LEN_SEQ 4
 static const Color *SEQUENCE[LEN_SEQ] = {&TEAL, &PINK, &WHITE, &PINK};
@@ -123,7 +123,7 @@ void main() {
 ISR(RTC_CNT_vect) {
 	if (i % ON_RATIO == 0) {
 		showColor(SEQUENCE[i / ON_RATIO]);
-TCB0_CCMPH = 127;
+		TCB0_CCMPH = 127;
 	} else if (i % ON_RATIO == ON_RATIO - 1) {
 		showColor(&BLACK);
 	}
