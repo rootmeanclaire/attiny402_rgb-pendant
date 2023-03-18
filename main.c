@@ -26,7 +26,9 @@ uint8_t i = 0;
 #define LEN_SEQ 4
 static const Color *SEQUENCE[LEN_SEQ] = {&TEAL, &PINK, &WHITE, &PINK};
 
+
 void showColor(const Color *color);
+
 
 void main() {
 	// Set up main clock
@@ -47,7 +49,7 @@ void main() {
 	
 	// Wait for RTC to be ready
 	while (RTC_STATUS);
-
+	
 	// Set up RTC timer for fade effect
 	// Set clock source to 1kHz from LFO
 	RTC_CLKSEL = RTC_CLKSEL_INT1K_gc;
@@ -71,7 +73,7 @@ void main() {
 		// Enable RTC
 		RTC_RTCEN_bm
 	);
-
+	
 	// Set up PWM timer
 	TCA0_SPLIT_CTRLD |= (
 		// Enable split mode
@@ -92,7 +94,7 @@ void main() {
 		TCA_SPLIT_LCMP0EN_bm |
 		TCA_SPLIT_LCMP1EN_bm
 	);
-
+	
 	// Set up Timer B for PWM
 	TCB0_CTRLA |= TCB_RUNSTDBY_bm;
 	TCB0_CCMPL = 0xFF;
@@ -104,7 +106,7 @@ void main() {
 	);
 	// Enable timer
 	TCB0_CTRLA |= TCB_ENABLE_bm;
-
+	
 	// Enable LED pins for output
 	PORTA_DIR |= (1 << PIN_RED) | (1 << PIN_GREEN) | (1 << PIN_BLUE);
 	
@@ -127,13 +129,13 @@ ISR(RTC_CNT_vect) {
 	} else if (i % ON_RATIO == ON_RATIO - 1) {
 		showColor(&BLACK);
 	}
-
+	
 	// Increment sequence index
 	i++;
 	if (i == LEN_SEQ * ON_RATIO) {
 		i = 0;
 	}
-
+	
 	// Clear interrupt flag
 	RTC_INTFLAGS = RTC_OVF_bm;
 }
