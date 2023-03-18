@@ -52,7 +52,7 @@ void main() {
 	
 	// Wait for RTC to be ready
 	while (RTC_STATUS);
-
+	
 	// Set up RTC timer for fade effect
 	// Set clock source to 1kHz from LFO
 	RTC_CLKSEL = RTC_CLKSEL_INT1K_gc;
@@ -76,7 +76,7 @@ void main() {
 		// Enable RTC
 		RTC_RTCEN_bm
 	);
-
+	
 	// Set up PWM timer
 	TCA0_SPLIT_CTRLD |= (
 		// Enable split mode
@@ -97,7 +97,7 @@ void main() {
 		TCA_SPLIT_LCMP0EN_bm |
 		TCA_SPLIT_LCMP1EN_bm
 	);
-
+	
 	// Set up Timer B for PWM
 	TCB0_CTRLA |= TCB_RUNSTDBY_bm;
 	TCB0_CCMPL = 0xFF;
@@ -109,7 +109,7 @@ void main() {
 	);
 	// Enable timer
 	TCB0_CTRLA |= TCB_ENABLE_bm;
-
+	
 	// Enable LED pins for output
 	PORTA_DIR |= (1 << PIN_RED) | (1 << PIN_GREEN) | (1 << PIN_BLUE);
 	
@@ -127,7 +127,7 @@ void main() {
 
 ISR(RTC_CNT_vect) {
 	Color color;
-
+	
 	if (i >> STEP_BASE == LEN_SEQ - 1) {
 		color = fadeColor(
 			SEQUENCE[LEN_SEQ - 1],
@@ -141,15 +141,15 @@ ISR(RTC_CNT_vect) {
 			(i % STEPS) << (8 - STEP_BASE)
 		);
 	}
-
+	
 	showColor(&color);
-
+	
 	// Increment sequence index
 	i++;
 	if (i == LEN_SEQ << STEP_BASE) {
 		i = 0;
 	}
-
+	
 	// Clear interrupt flag
 	RTC_INTFLAGS = RTC_OVF_bm;
 }
@@ -162,7 +162,7 @@ void showColor(const Color *color) {
 
 Color fadeColor(const Color *c1, const Color *c2, uint8_t weight) {
 	Color c3;
-
+	
 	if (c1->red == c2->red) {
 		c3.red = c1->red;
 	} else {
@@ -171,7 +171,7 @@ Color fadeColor(const Color *c1, const Color *c2, uint8_t weight) {
 			(uint16_t) ((weight) * c2->red)
 		) >> 8;
 	}
-
+	
 	if (c1->green == c2->green) {
 		c3.green = c1->green;
 	} else {
@@ -180,7 +180,7 @@ Color fadeColor(const Color *c1, const Color *c2, uint8_t weight) {
 			(uint16_t) ((weight) * c2->green)
 		) >> 8;
 	}
-
+	
 	if (c1->blue == c2->blue) {
 		c3.blue = c1->blue;
 	} else {
@@ -189,6 +189,6 @@ Color fadeColor(const Color *c1, const Color *c2, uint8_t weight) {
 			(uint16_t) ((weight) * c2->blue)
 		) >> 8;
 	}
-
+	
 	return c3;
 }
