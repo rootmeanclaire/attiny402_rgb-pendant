@@ -19,14 +19,19 @@ typedef struct _Color {
 static const Color TEAL = {0, 255, 255};
 static const Color PINK = {255, 0, 255};
 static const Color WHITE = {255, 255, 255};
-static const Color BLACK = {0, 0, 0};
 
-const uint8_t ON_RATIO = 4;
+// The number of steps per color
+const uint8_t STEP_BASE = 4;
+const uint8_t STEPS = 1 << STEP_BASE;
+// The total number of steps since the start of the sequence
 uint8_t i = 0;
 #define LEN_SEQ 4
 static const Color *SEQUENCE[LEN_SEQ] = {&TEAL, &PINK, &WHITE, &PINK};
 
+
 void showColor(const Color *color);
+Color fadeColor(const Color *c1, const Color *c2, uint8_t weight);
+
 
 void main() {
 	// Set up main clock
@@ -60,7 +65,7 @@ void main() {
 		| RTC_RUNSTDBY_bm
 	);
 	// Set RTC period
-	RTC_PER = 512;
+	RTC_PER = 256;
 	RTC_INTCTRL |= (
 		// Enable interrupt on overflow
 		RTC_OVF_bm
@@ -121,16 +126,27 @@ void main() {
 
 
 ISR(RTC_CNT_vect) {
-	if (i % ON_RATIO == 0) {
-		showColor(SEQUENCE[i / ON_RATIO]);
-		TCB0_CCMPH = 127;
-	} else if (i % ON_RATIO == ON_RATIO - 1) {
-		showColor(&BLACK);
+	Color color;
+
+	if (i >> STEP_BASE == LEN_SEQ - 1) {
+		color = fadeColor(
+			SEQUENCE[LEN_SEQ - 1],
+			SEQUENCE[0],
+			(i % STEPS) << (8 - STEP_BASE)
+		);
+	} else {
+		color = fadeColor(
+			SEQUENCE[i >> STEP_BASE],
+			SEQUENCE[(i >> STEP_BASE) + 1],
+			(i % STEPS) << (8 - STEP_BASE)
+		);
 	}
+
+	showColor(&color);
 
 	// Increment sequence index
 	i++;
-	if (i == LEN_SEQ * ON_RATIO) {
+	if (i == LEN_SEQ << STEP_BASE) {
 		i = 0;
 	}
 
@@ -142,4 +158,37 @@ void showColor(const Color *color) {
 	TCA0_SPLIT_LCMP0 = color->red;
 	TCA0_SPLIT_LCMP1 = color->green;
 	TCB0_CCMPH = color->blue;
+}
+
+Color fadeColor(const Color *c1, const Color *c2, uint8_t weight) {
+	Color c3;
+
+	if (c1->red == c2->red) {
+		c3.red = c1->red;
+	} else {
+		c3.red = (
+			(uint16_t) ((0xFF - weight) * c1->red) +
+			(uint16_t) ((weight) * c2->red)
+		) >> 8;
+	}
+
+	if (c1->green == c2->green) {
+		c3.green = c1->green;
+	} else {
+		c3.green = (
+			(uint16_t) ((0xFF - weight) * c1->green) +
+			(uint16_t) ((weight) * c2->green)
+		) >> 8;
+	}
+
+	if (c1->blue == c2->blue) {
+		c3.blue = c1->blue;
+	} else {
+		c3.blue = (
+			(uint16_t) ((0xFF - weight) * c1->blue) +
+			(uint16_t) ((weight) * c2->blue)
+		) >> 8;
+	}
+
+	return c3;
 }
