@@ -4,11 +4,11 @@
 #include <avr/sleep.h>
 
 // Set up red channel on PA3 (TCA WO0)
-#define PIN_RED 3
+const uint8_t PIN_RED = 3;
 // Set up green channel on PA1 (TCA WO1)
-#define PIN_GREEN 1
+const uint8_t PIN_GREEN = 1;
 // Set up blue channel on PA6 (TCB WO)
-#define PIN_BLUE 6
+const uint8_t PIN_BLUE = 6;
 
 typedef struct _Color {
 	uint8_t red;
@@ -21,12 +21,14 @@ static const Color PINK = {255, 0, 255};
 static const Color WHITE = {255, 255, 255};
 static const Color BLACK = {0, 0, 0};
 
-#define ON_RATIO 4
+const uint8_t ON_RATIO = 4;
 uint8_t i = 0;
 #define LEN_SEQ 4
 static const Color *SEQUENCE[LEN_SEQ] = {&TEAL, &PINK, &WHITE, &PINK};
 
+
 void showColor(const Color *color);
+
 
 void main() {
 	// Set up main clock
@@ -47,7 +49,7 @@ void main() {
 	
 	// Wait for RTC to be ready
 	while (RTC_STATUS);
-
+	
 	// Set up RTC timer for fade effect
 	// Set clock source to 1kHz from LFO
 	RTC_CLKSEL = RTC_CLKSEL_INT1K_gc;
@@ -71,7 +73,7 @@ void main() {
 		// Enable RTC
 		RTC_RTCEN_bm
 	);
-
+	
 	// Set up PWM timer
 	TCA0_SPLIT_CTRLD |= (
 		// Enable split mode
@@ -92,7 +94,7 @@ void main() {
 		TCA_SPLIT_LCMP0EN_bm |
 		TCA_SPLIT_LCMP1EN_bm
 	);
-
+	
 	// Set up Timer B for PWM
 	TCB0_CTRLA |= TCB_RUNSTDBY_bm;
 	TCB0_CCMPL = 0xFF;
@@ -104,7 +106,7 @@ void main() {
 	);
 	// Enable timer
 	TCB0_CTRLA |= TCB_ENABLE_bm;
-
+	
 	// Enable LED pins for output
 	PORTA_DIR |= (1 << PIN_RED) | (1 << PIN_GREEN) | (1 << PIN_BLUE);
 	
@@ -123,17 +125,17 @@ void main() {
 ISR(RTC_CNT_vect) {
 	if (i % ON_RATIO == 0) {
 		showColor(SEQUENCE[i / ON_RATIO]);
-TCB0_CCMPH = 127;
+		TCB0_CCMPH = 127;
 	} else if (i % ON_RATIO == ON_RATIO - 1) {
 		showColor(&BLACK);
 	}
-
+	
 	// Increment sequence index
 	i++;
 	if (i == LEN_SEQ * ON_RATIO) {
 		i = 0;
 	}
-
+	
 	// Clear interrupt flag
 	RTC_INTFLAGS = RTC_OVF_bm;
 }
