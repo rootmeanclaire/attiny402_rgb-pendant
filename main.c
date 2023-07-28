@@ -3,12 +3,14 @@
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 
-// Set up red channel on PA3 (TCA WO0)
+// Set up red channel on PA3
 const uint8_t PIN_RED = 3;
-// Set up green channel on PA1 (TCA WO1)
+// Set up green channel on PA1
 const uint8_t PIN_GREEN = 1;
+// Set up blue channel on PA7
+const uint8_t PIN_BLUE = 7;
 // Set up blue channel on PA6 (TCB WO)
-const uint8_t PIN_BLUE = 6;
+const uint8_t PIN_PWN = 6;
 
 typedef struct _Color {
 	uint8_t red;
@@ -19,18 +21,17 @@ typedef struct _Color {
 static const Color TEAL = {0, 255, 255};
 static const Color PINK = {255, 0, 255};
 static const Color WHITE = {255, 255, 255};
+static const Color BLACK = {0, 0, 0};
 
-// The number of steps per color
-const uint8_t STEP_BASE = 4;
-const uint8_t STEPS = 1 << STEP_BASE;
-// The total number of steps since the start of the sequence
-uint8_t i = 0;
+const uint8_t ON_RATIO = 4;
+volatile uint8_t ticks = 0;
+volatile uint8_t iRGB = 0;
+volatile Color currColor = BLACK;
 #define LEN_SEQ 4
 static const Color *SEQUENCE[LEN_SEQ] = {&TEAL, &PINK, &WHITE, &PINK};
 
 
-void showColor(const Color *color);
-Color fadeColor(const Color *c1, const Color *c2, uint8_t weight);
+void showColor();
 
 
 void main() {
@@ -65,7 +66,7 @@ void main() {
 		| RTC_RUNSTDBY_bm
 	);
 	// Set RTC period
-	RTC_PER = 256;
+	RTC_PER = 16;
 	RTC_INTCTRL |= (
 		// Enable interrupt on overflow
 		RTC_OVF_bm
@@ -75,27 +76,6 @@ void main() {
 	RTC_CTRLA |= (
 		// Enable RTC
 		RTC_RTCEN_bm
-	);
-	
-	// Set up PWM timer
-	TCA0_SPLIT_CTRLD |= (
-		// Enable split mode
-		TCA_SPLIT_SPLITM_bm
-	);
-	// Set PWM timer period
-	TCA0_SPLIT_LPER = 0xFF;
-	TCA0_SPLIT_CTRLA |= (
-		// Enable timer
-		TCA_SPLIT_ENABLE_bm |
-		// Set clock divder
-		TCA_SPLIT_CLKSEL_DIV1_gc
-	);
-	
-	// Set up PWM output
-	TCA0_SPLIT_CTRLB |= (
-		// Override outputs for PWM
-		TCA_SPLIT_LCMP0EN_bm |
-		TCA_SPLIT_LCMP1EN_bm
 	);
 	
 	// Set up Timer B for PWM
@@ -111,7 +91,8 @@ void main() {
 	TCB0_CTRLA |= TCB_ENABLE_bm;
 	
 	// Enable LED pins for output
-	PORTA_DIR |= (1 << PIN_RED) | (1 << PIN_GREEN) | (1 << PIN_BLUE);
+	PORTA_DIR |= (1 << PIN_RED) | (1 << PIN_GREEN) | (1 << PIN_BLUE) |
+		(1 << PIN_PWN);
 	
 	// Enable global interrupts
 	sei();
@@ -126,69 +107,41 @@ void main() {
 
 
 ISR(RTC_CNT_vect) {
-	Color color;
-	
-	if (i >> STEP_BASE == LEN_SEQ - 1) {
-		color = fadeColor(
-			SEQUENCE[LEN_SEQ - 1],
-			SEQUENCE[0],
-			(i % STEPS) << (8 - STEP_BASE)
-		);
-	} else {
-		color = fadeColor(
-			SEQUENCE[i >> STEP_BASE],
-			SEQUENCE[(i >> STEP_BASE) + 1],
-			(i % STEPS) << (8 - STEP_BASE)
-		);
+	if (i == 0)
+		if (i % ON_RATIO == 0) {
+			showColor(SEQUENCE[i / ON_RATIO]);
+			TCB0_CCMPH = 127;
+		} else if (i % ON_RATIO == ON_RATIO - 1) {
+			showColor(&BLACK);
+		}
+		
+		// Increment sequence index
+		i++;
+		if (i == LEN_SEQ * ON_RATIO) {
+			i = 0;
+		}
 	}
 	
-	showColor(&color);
-	
-	// Increment sequence index
+	showColor();
 	i++;
-	if (i == LEN_SEQ << STEP_BASE) {
-		i = 0;
-	}
 	
 	// Clear interrupt flag
 	RTC_INTFLAGS = RTC_OVF_bm;
 }
 
-void showColor(const Color *color) {
-	TCA0_SPLIT_LCMP0 = color->red;
-	TCA0_SPLIT_LCMP1 = color->green;
-	TCB0_CCMPH = color->blue;
-}
-
-Color fadeColor(const Color *c1, const Color *c2, uint8_t weight) {
-	Color c3;
-	
-	if (c1->red == c2->red) {
-		c3.red = c1->red;
+void showColor() {
+	if (iColor == 0) {
+		PORTA &= ~(1 << PIN_BLUE);
+		TCB0_CCMPH = currColor->red;
+		PORTA |= (1 << PIN_RED);
+	} else if (iColor == 1) {
+		PORTA &= ~(1 << PIN_RED);
+		TCB0_CCMPH = currColor->green;
+		PORTA |= (1 << PIN_GREEN);
 	} else {
-		c3.red = (
-			(uint16_t) ((0xFF - weight) * c1->red) +
-			(uint16_t) ((weight) * c2->red)
-		) >> 8;
+		PORTA &= ~(1 << PIN_GREEN);
+		TCB0_CCMPH = currColor->blue;
+		PORTA |= (1 << PIN_BLUE);
+		iColor = 0;
 	}
-	
-	if (c1->green == c2->green) {
-		c3.green = c1->green;
-	} else {
-		c3.green = (
-			(uint16_t) ((0xFF - weight) * c1->green) +
-			(uint16_t) ((weight) * c2->green)
-		) >> 8;
-	}
-	
-	if (c1->blue == c2->blue) {
-		c3.blue = c1->blue;
-	} else {
-		c3.blue = (
-			(uint16_t) ((0xFF - weight) * c1->blue) +
-			(uint16_t) ((weight) * c2->blue)
-		) >> 8;
-	}
-	
-	return c3;
 }
